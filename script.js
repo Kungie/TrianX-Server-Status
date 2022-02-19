@@ -1,42 +1,67 @@
-const { Client, Intents, Application } = require("discord.js");
-const puppeteer = require("puppeteer");
-const cheerio = require("cheerio");
+const { Client, Intents, MessageEmbed } = require("discord.js");
 const { token } = require("./config.json");
-
-const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+const status = require("minecraft-server-status");
+const client = new Client({
+  intents: [
+    Intents.FLAGS.GUILDS,
+    Intents.FLAGS.GUILD_MESSAGES,
+    Intents.FLAGS.GUILD_MEMBERS,
+  ],
+});
 
 client.once("ready", () => {
-  console.log("Ready!");
+  console.log("Ready!\n");
 
-  (async () => {
-    setInterval(async () => {
-      const browser = await puppeteer.launch();
-      const page = await browser.newPage();
-      await page.goto("https://mcsrvstat.us/server/Trianx.aternos.me");
+  setInterval(() => {
+    status("Trianx.aternos.me", 25565, (response) => {
+      var playerCount = response.players.now;
 
-      const pageData = await page.evaluate(() => {
-        return {
-          html: document.documentElement.innerHTML,
-          width: document.documentElement.clientWidth,
-          height: document.documentElement.clientHeight,
-        };
-      });
+      const today = new Date();
+      let h = today.getHours();
+      let m = today.getMinutes();
+      let s = today.getSeconds();
 
-      const $ = cheerio.load(pageData.html);
+      console.log(h + ":" + m + ":" + s + "\n" + "Player Count: " + playerCount);
 
-      const status = $("td");
+      if (playerCount > 0) {
+        client.user.setActivity("TrianX is Online 🟢", { type: "WATCHING" });
 
-      await browser.close();
-
-      if (status.text().includes("Offline")) {
-        console.log("Server is Offline");
-        client.user.setActivity("Server is Offline 🔴", { type: "WATCHING" });
+        console.log("Status: Online\n");
       } else {
-        console.log("Server is Online");
-        client.user.setActivity("Server is Online 🟢", { type: "WATCHING" });
+        client.user.setActivity("TrianX is Offline ❌", { type: "WATCHING" });
+
+        console.log("Status: Offline\n");
       }
-    }, 6000);
-  })();
+    });
+  }, 6000);
+});
+
+client.on("message", (message) => {
+  status("Trianx.aternos.me", 25565, (response) => {
+    var playerCount = response.players.now;
+    var status = "";
+    var embedColor = "";
+    var motd = "This server is currently offline.";
+
+    if (playerCount > 0) {
+      status = "The Server is Online 🟢";
+      embedColor = "#00ff00";
+      motd = response.motd;
+    } else {
+      status = "The Server is Offline 🔴";
+      embedColor = "#ff0000";
+    }
+
+    if (message.content === "trianx") {
+      var embed = new MessageEmbed()
+        .setTitle("TrianX Minecraft Server")
+        .setColor(embedColor)
+        .setDescription(status)
+        .addField("Description", motd)
+        .addField("Player Count", playerCount + " / " + response.players.max);
+      message.channel.send(embed);
+    }
+  });
 });
 
 client.login(token);
